@@ -13,6 +13,7 @@ const state = {
   zone_id: null,
   metric: "travel_time",
   dataset: "all",
+  country: "de",
   selectedLayer: null,
   zonesById: new Map(),
   zoneNamesById: new Map(),
@@ -31,6 +32,7 @@ const hourLabelEl = document.getElementById("hourLabel");
 const zoneEl = document.getElementById("zone");
 const dayTypeTabs = document.querySelectorAll(".daytype-tab");
 const datasetTabs = document.querySelectorAll(".dataset-tab");
+const countryTabs = document.querySelectorAll(".country-tab");
 const metricRadios = document.querySelectorAll('input[name="metric"]');
 
 
@@ -41,6 +43,7 @@ const translations = {
     page_title: "Erreichbarkeit im Schienenverkehr",
     sidebar: {
       filters: "Filterauswahl",
+      network: "Netz",
       status: "Stand: Fahrplan 2026 Kalenderwoche 9",
       daytype: "Tagtyp",
       metric: "Darstellen nach",
@@ -48,6 +51,10 @@ const translations = {
       hour: "Uhrzeit (Abfahrtsstunde)",
       zone: "Zone",
       all_zones: "(Alle Zonen)",
+    },
+    country: {
+      de: "Deutschland (DB)",
+      at: "Österreich (ÖBB)",
     },
     daytype: {
       weekday: "Wochentag",
@@ -75,7 +82,8 @@ const translations = {
       github_aria: "GitHub Projektseite öffnen",
     },
     hero: {
-      title: "Erreichbarkeit im deutschen Schienennetz",
+      title_de: "Erreichbarkeit im deutschen Schienennetz",
+      title_at: "Erreichbarkeit im österreichischen Schienennetz (ÖBB)",
       subtitle: "Interaktive Karte der Erreichbarkeit nach Reisezeit, Umstiegen und ÖPNV/MIV-Verhältnis",
     },
     map: {
@@ -118,6 +126,7 @@ const translations = {
     page_title: "Accessibility in rail transport",
     sidebar: {
       filters: "Filters",
+      network: "Network",
       status: "Status: 2026 timetable calendar week 9",
       daytype: "Day type",
       metric: "Display by",
@@ -125,6 +134,10 @@ const translations = {
       hour: "Time of day (departure hour)",
       zone: "Zone",
       all_zones: "(All zones)",
+    },
+    country: {
+      de: "Germany (DB)",
+      at: "Austria (ÖBB)",
     },
     daytype: {
       weekday: "Weekday",
@@ -152,7 +165,8 @@ const translations = {
       github_aria: "Open GitHub project page",
     },
     hero: {
-      title: "Accessibility in the German rail network",
+      title_de: "Accessibility in the German rail network",
+      title_at: "Accessibility in the Austrian rail network (ÖBB)",
       subtitle: "Interactive map of accessibility by travel time, transfers and public transport/car ratio",
     },
     map: {
@@ -245,6 +259,12 @@ function applyTranslations() {
     langEn.style.color = state.lang === "en" ? "#ffffff" : "#111827";
   }
 
+  // Update the hero title depending on selected country
+  const heroTitle = document.querySelector("[data-i18n='hero.title']");
+  if (heroTitle) {
+    heroTitle.textContent = state.country === "at" ? t("hero.title_at") : t("hero.title_de");
+  }
+
   updateLegend();
   updateRankings(lastValues || {});
 }
@@ -286,6 +306,12 @@ function setZone(zoneId) {
   highlightZone(state.zone_id);
 }
 
+// Map center / zoom defaults per country
+const MAP_DEFAULTS = {
+  de: { center: [51.1657, 10.4515], zoom: 6 },
+  at: { center: [47.7, 13.3], zoom: 7 },
+};
+
 const map = L.map("map", {
   zoomAnimation: false,
   fadeAnimation: false,
@@ -318,7 +344,7 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
 }).addTo(map);
 
 async function buildWeekOptions() {
-  const r = await fetch("/api/periods");
+  const r = await fetch(`/api/periods?country=${state.country}`);
   const payload = await r.json();
   const periods = payload.periods || [];
 
@@ -329,7 +355,13 @@ async function buildWeekOptions() {
 }
 
 async function loadZoneIndex() {
-  const r = await fetch("/api/zones/index");
+  // Clear existing options (keep the default "(All zones)" option)
+  while (zoneEl.options.length > 1) {
+    zoneEl.remove(1);
+  }
+  state.zoneNamesById.clear();
+
+  const r = await fetch(`/api/zones/index?country=${state.country}`);
   const zones = await r.json();
 
   for (const z of zones) {
@@ -590,6 +622,7 @@ async function loadMetricAndRender() {
   url.searchParams.set("hour", String(state.hour));
   url.searchParams.set("dataset", state.dataset);
   url.searchParams.set("metric", state.metric);
+  url.searchParams.set("country", state.country);
 
   if (state.zone_id) {
     url.searchParams.set("origin_zone_id", state.zone_id);
@@ -647,10 +680,19 @@ function updateRankings(valuesByZoneId) {
   worstEl.innerHTML = buildRankingTable(worst3);
 }
 
+// Holds the current GeoJSON layer so it can be removed when switching countries
+let currentZoneLayer = null;
+
 async function loadZonesGeoJSON() {
+  // Remove existing zone layer
+  if (currentZoneLayer) {
+    map.removeLayer(currentZoneLayer);
+    currentZoneLayer = null;
+  }
   state.zonesById.clear();
   state.selectedLayer = null;
-  const r = await fetch("/api/zones/geojson");
+
+  const r = await fetch(`/api/zones/geojson?country=${state.country}`);
   const gj = await r.json();
 
   const layer = L.geoJSON(gj, {
@@ -774,9 +816,34 @@ async function loadZonesGeoJSON() {
     },
   }).addTo(map);
 
+  currentZoneLayer = layer;
+
   try {
     map.fitBounds(layer.getBounds(), { padding: [10, 10] });
   } catch (_) {}
+}
+
+async function switchCountry(newCountry) {
+  if (state.country === newCountry) return;
+
+  state.country = newCountry;
+  state.zone_id = null;
+  lastValues = {};
+  lastMode = "origin_avg";
+  lastOriginStations = {};
+  lastDestStations = {};
+  lastOriginStation = null;
+  if (zoneEl) zoneEl.value = "";
+
+  // Reset map view to the selected country's default
+  const defaults = MAP_DEFAULTS[newCountry] || MAP_DEFAULTS.de;
+  map.setView(defaults.center, defaults.zoom);
+
+  applyTranslations();
+  await buildWeekOptions();
+  await loadZoneIndex();
+  await loadZonesGeoJSON();
+  await loadMetricAndRender();
 }
 
 if (weekEl) {
@@ -801,6 +868,14 @@ datasetTabs.forEach((btn) => {
     btn.classList.add("active");
     state.dataset = btn.dataset.value;
     loadMetricAndRender();
+  });
+});
+
+countryTabs.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    countryTabs.forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    switchCountry(btn.dataset.value);
   });
 });
 
@@ -845,3 +920,4 @@ if (langEnEl) {
   await loadZonesGeoJSON();
   await loadMetricAndRender();
 })();
+

@@ -30,7 +30,10 @@ def test_od_metric_origin_avg_with_monkeypatched_loader(monkeypatch):
         }
     )
 
-    monkeypatch.setattr("app.services.od._load_hour_df", lambda period, day_type, hour: mock_df)
+    monkeypatch.setattr(
+        "app.services.od._load_hour_df",
+        lambda period, day_type, hour, dataset="all", country="de": mock_df,
+    )
 
     result = od_metric(
         period="2026W09",
@@ -58,7 +61,10 @@ def test_od_metric_for_selected_origin(monkeypatch):
         }
     )
 
-    monkeypatch.setattr("app.services.od._load_hour_df", lambda period, day_type, hour: mock_df)
+    monkeypatch.setattr(
+        "app.services.od._load_hour_df",
+        lambda period, day_type, hour, dataset="all", country="de": mock_df,
+    )
 
     result = od_metric(
         period="2026W09",
@@ -71,3 +77,51 @@ def test_od_metric_for_selected_origin(monkeypatch):
     assert result["mode"] == "od"
     assert result["values"]["2"] == 5000
     assert result["values"]["3"] == 6500
+
+
+def test_od_metric_austria_returns_empty_without_data():
+    """Austria country parameter propagates correctly when no data is present."""
+    result = od_metric(
+        period="2026W09",
+        day_type="weekday",
+        hour=8,
+        origin_zone_id=None,
+        metric="travel_time",
+        country="at",
+    )
+    assert result["values"] == {}
+    assert result["mode"] == "origin_avg"
+
+
+def test_od_metric_austria_with_monkeypatched_loader(monkeypatch):
+    """Austria country parameter is forwarded to the data loader."""
+    mock_df = pd.DataFrame(
+        {
+            "origin_zone_id": ["101", "101"],
+            "dest_zone_id": ["201", "301"],
+            "total_travel_time_sec": [1800, 3600],
+            "origin_stop_id": ["W1", "W1"],
+            "origin_stop_name": ["Wien Hbf", "Wien Hbf"],
+        }
+    )
+
+    calls = []
+
+    def mock_loader(period, day_type, hour, dataset="all", country="de"):
+        calls.append(country)
+        return mock_df
+
+    monkeypatch.setattr("app.services.od._load_hour_df", mock_loader)
+
+    result = od_metric(
+        period="2026W09",
+        day_type="weekday",
+        hour=8,
+        origin_zone_id=None,
+        metric="travel_time",
+        country="at",
+    )
+
+    assert calls, "Loader was not called"
+    assert calls[0] == "at", f"Expected country='at', got '{calls[0]}'"
+    assert result["mode"] == "origin_avg"

@@ -18,7 +18,7 @@ from app.ui.datapage import DATA_PAGE_HTML
 from app.ui.datapage_en import DATA_PAGE_HTML_EN
 from pathlib import Path
 
-app = FastAPI(title="German Traveltime Quality - Map UI", version="1.0.0")
+app = FastAPI(title="Rail Traveltime Quality - Map UI", version="1.0.0")
 
 _ui_static_dir = Path(__file__).resolve().parent / "ui" / "static"
 app.mount("/static", StaticFiles(directory=_ui_static_dir), name="static")
@@ -26,20 +26,20 @@ app.mount("/data", StaticFiles(directory="data"), name="data")
 
 
 @app.get("/api/zones/index", response_class=JSONResponse)
-def api_zones_index():
+def api_zones_index(country: str = Query("de", description="de|at")):
     """Return zone_id + zone_name records for the dropdown."""
-    return zones_index()
+    return zones_index(country)
 
 
 @app.get("/api/zones/geojson", response_class=JSONResponse)
-def api_zones_geojson():
+def api_zones_geojson(country: str = Query("de", description="de|at")):
     """Return zone polygons as GeoJSON for Leaflet rendering."""
-    return zones_geojson()
+    return zones_geojson(country)
 
 
 @app.get("/api/periods")
-def api_periods() -> dict[str, object]:
-    return {"periods": available_periods()}
+def api_periods(country: str = Query("de", description="de|at")) -> dict[str, object]:
+    return {"periods": available_periods(country)}
 
 
 @app.get("/about-data", response_class=HTMLResponse)
@@ -61,7 +61,8 @@ def api_od_metric(
     hour: int = Query(..., ge=0, le=23),
     origin_zone_id: str | None = Query(None),
     metric: str = Query("travel_time", description="travel_time|car_travel_time|transfers|pt_car_ratio"),
-    dataset: str = Query("all", description="all|regional")):
+    dataset: str = Query("all", description="all|regional"),
+    country: str = Query("de", description="de|at")):
     """
     Return choropleth values for a selected metric (travel_time or transfers).
 
@@ -74,7 +75,8 @@ def api_od_metric(
         hour=hour,
         origin_zone_id=origin_zone_id,
         metric=metric,
-        dataset=dataset)
+        dataset=dataset,
+        country=country)
 
 
 @app.get("/", response_class=HTMLResponse)

@@ -227,7 +227,8 @@
         }
 
         .daytype-tabs,
-        .dataset-tabs {
+        .dataset-tabs,
+        .country-tabs {
           display: grid;
           gap: 8px;
         }
@@ -240,8 +241,13 @@
           grid-template-columns: repeat(2, 1fr);
         }
 
+        .country-tabs {
+          grid-template-columns: repeat(2, 1fr);
+        }
+
         .daytype-tab,
-        .dataset-tab {
+        .dataset-tab,
+        .country-tab {
           appearance: none;
           border: 1px solid #d1d5db;
           background: #ffffff;
@@ -260,13 +266,15 @@
         }
 
         .daytype-tab:hover,
-        .dataset-tab:hover {
+        .dataset-tab:hover,
+        .country-tab:hover {
           background: #f8fafc;
           border-color: #9ca3af;
         }
 
         .daytype-tab.active,
-        .dataset-tab.active {
+        .dataset-tab.active,
+        .country-tab.active {
           background: #111827;
           color: #ffffff;
           border-color: #111827;

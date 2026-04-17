@@ -4,6 +4,8 @@ OD (origin-destination) data access for the map UI.
 This module loads precomputed zone-to-zone data from Arrow files stored
 under: data/od/<period>/day_type=<day_type>/hour=<HH>.arrow
 
+Supports both Germany (country="de") and Austria (country="at").
+
 The API returns a compact mapping:
   { dest_zone_id: travel_time_seconds, ... }
 """
@@ -19,9 +21,18 @@ import pyarrow.feather as feather
 
 # Local
 from app.config import OD_DIR, REGIONAL_OD_DIR, CAR_OD_DIR
+from app.config import AT_OD_DIR, AT_REGIONAL_OD_DIR, AT_CAR_OD_DIR
 
 
-def _od_file(period: str, day_type: str, hour: int, dataset: str = "all") -> Path:
+def _country_od_dirs(country: str) -> tuple[Path, Path, Path]:
+    """Return (od_dir, regional_od_dir, car_od_dir) for the given country."""
+    if country == "at":
+        return AT_OD_DIR, AT_REGIONAL_OD_DIR, AT_CAR_OD_DIR
+    return OD_DIR, REGIONAL_OD_DIR, CAR_OD_DIR
+
+
+def _od_file(period: str, day_type: str, hour: int, dataset: str = "all",
+             country: str = "de") -> Path:
     """
     Build the Arrow file path for a given selection.
 
@@ -32,7 +43,8 @@ def _od_file(period: str, day_type: str, hour: int, dataset: str = "all") -> Pat
       "all" -> full rail dataset
       "regional" -> regional-only dataset
     """
-    base_dir = REGIONAL_OD_DIR if dataset == "regional" else OD_DIR
+    od_dir, regional_od_dir, _ = _country_od_dirs(country)
+    base_dir = regional_od_dir if dataset == "regional" else od_dir
 
     candidates = [
         base_dir / period / f"day_type={day_type}" / f"hour={hour:02d}.arrow",
@@ -48,21 +60,23 @@ def _od_file(period: str, day_type: str, hour: int, dataset: str = "all") -> Pat
     return candidates[0]
 
 
-def available_periods() -> list[str]:
+def available_periods(country: str = "de") -> list[str]:
     """
-    Return sorted list of periods (e.g. 2026W09) that exist under OD_DIR.
+    Return sorted list of periods (e.g. 2026W09) that exist under the OD dir.
+
     Supports both conventions:
       - OD_DIR/<period>/...
       - OD_DIR/period=<period>/...
     """
+    od_dir, _, _ = _country_od_dirs(country)
     periods: set[str] = set()
 
     _PERIOD_RE = re.compile(r"^\d{4}W\d{2}$")
 
-    if not OD_DIR.exists():
+    if not od_dir.exists():
         return []
 
-    for p in OD_DIR.iterdir():
+    for p in od_dir.iterdir():
         if not p.is_dir():
             continue
 
@@ -82,7 +96,7 @@ def available_periods() -> list[str]:
     return sorted(periods)
 
 
-def _load_car_hour_df(hour: int) -> pd.DataFrame:
+def _load_car_hour_df(hour: int, country: str = "de") -> pd.DataFrame:
     """
     Load the precomputed car OD table and apply an hour-based congestion factor.
 
@@ -96,12 +110,14 @@ def _load_car_hour_df(hour: int) -> pd.DataFrame:
 
     Args:
         hour: Requested hour of day (0..23).
+        country: "de" for Germany or "at" for Austria.
 
     Returns:
         DataFrame with adjusted car OD data, or an empty DataFrame if the file
         does not exist.
     """
-    path = CAR_OD_DIR / "car_od.arrow"
+    _, _, car_od_dir = _country_od_dirs(country)
+    path = car_od_dir / "car_od.arrow"
     if not path.exists():
         return pd.DataFrame()
 
@@ -124,8 +140,9 @@ def _load_car_hour_df(hour: int) -> pd.DataFrame:
     return df
 
 
-@lru_cache(maxsize=96)
-def _load_hour_df(period: str, day_type: str, hour: int, dataset: str = "all") -> pd.DataFrame:
+@lru_cache(maxsize=192)
+def _load_hour_df(period: str, day_type: str, hour: int, dataset: str = "all",
+                  country: str = "de") -> pd.DataFrame:
     """
     Load one Arrow file into a DataFrame and normalize column dtypes.
 
@@ -137,11 +154,12 @@ def _load_hour_df(period: str, day_type: str, hour: int, dataset: str = "all") -
         day_type: Day type folder name, e.g. "weekday".
         hour: Departure hour (0..23).
         dataset: regional or all
+        country: "de" for Germany or "at" for Austria.
 
     Returns:
         DataFrame containing OD rows. Empty DataFrame if file is missing.
     """
-    path = _od_file(period, day_type, hour, dataset=dataset)
+    path = _od_file(period, day_type, hour, dataset=dataset, country=country)
     if not path.exists():
         return pd.DataFrame()
 
@@ -156,7 +174,7 @@ def _load_hour_df(period: str, day_type: str, hour: int, dataset: str = "all") -
 
 
 def od_metric(*, period: str, day_type: str, hour: int, origin_zone_id: str | None,
-              metric: str, dataset: str = "all",) -> dict[str, object]:
+              metric: str, dataset: str = "all", country: str = "de") -> dict[str, object]:
     """
     Return a zone-based metric mapping for a single origin zone.
 
@@ -178,6 +196,7 @@ def od_metric(*, period: str, day_type: str, hour: int, origin_zone_id: str | No
         origin_zone_id: Selected origin zone id. If None, returns average values.
         metric: Metric identifier ("travel_time", "transfers", "car_travel_time" or "pt_car_ratio").
         dataset: all or regional
+        country: "de" for Germany or "at" for Austria.
     Returns:
         Dict with keys:
             - origin_zone_id: str | None
@@ -187,10 +206,10 @@ def od_metric(*, period: str, day_type: str, hour: int, origin_zone_id: str | No
     """
   # if no zone is selected return average to all other zones in traveltimes and transfers
     if metric == "car_travel_time":
-        df = _load_car_hour_df(hour)
+        df = _load_car_hour_df(hour, country=country)
     elif metric == "pt_car_ratio":
-        pt_df = _load_hour_df(period, day_type, hour, dataset=dataset)
-        car_df = _load_car_hour_df(hour)
+        pt_df = _load_hour_df(period, day_type, hour, dataset=dataset, country=country)
+        car_df = _load_car_hour_df(hour, country=country)
 
         if pt_df.empty or car_df.empty:
             df = pd.DataFrame()
@@ -212,7 +231,7 @@ def od_metric(*, period: str, day_type: str, hour: int, origin_zone_id: str | No
             df = df.loc[df["car_travel_time_sec"] > 0].copy()
             df["pt_car_ratio"] = df["total_travel_time_sec"] / df["car_travel_time_sec"]
     else:
-        df = _load_hour_df(period, day_type, hour, dataset=dataset)
+        df = _load_hour_df(period, day_type, hour, dataset=dataset, country=country)
 
     if not origin_zone_id:
         if df.empty:

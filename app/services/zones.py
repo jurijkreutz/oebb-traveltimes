@@ -1,8 +1,11 @@
 """
 Zone data access helpers.
 
-Provides cached loading and serialization of VG1000 polygons for fast
+Provides cached loading and serialization of zone polygons for fast
 client delivery (GeoJSON) and lightweight dropdown population.
+
+Supports both Germany (country="de") using VG1000 and Austria (country="at")
+using the Statistik Austria Bezirke boundary dataset.
 """
 
 # Standard library
@@ -18,27 +21,44 @@ from app.config import (
     VG_LAYER,
     ZONE_ID_COL,
     ZONE_NAME_COL,
+    AT_SHAPES_DIR,
+    AT_VG_LAYER,
+    AT_ZONE_ID_COL,
+    AT_ZONE_NAME_COL,
 )
 
 
-@lru_cache(maxsize=1)
-def zones_gdf():
+def _country_config(country: str) -> tuple:
+    """Return (shapes_dir, vg_layer, zone_id_col, zone_name_col) for *country*."""
+    if country == "at":
+        return AT_SHAPES_DIR, AT_VG_LAYER, AT_ZONE_ID_COL, AT_ZONE_NAME_COL
+    # Default: Germany
+    return VG1000_DIR, VG_LAYER, ZONE_ID_COL, ZONE_NAME_COL
+
+
+@lru_cache(maxsize=2)
+def zones_gdf(country: str = "de"):
     """
-    Load VG1000 zones once and normalize them for web mapping.
+    Load zone boundaries once and normalize them for web mapping.
+
+    Args:
+        country: "de" for Germany (VG1000) or "at" for Austria (Bezirke).
 
     Returns:
         GeoDataFrame with columns: zone_id, zone_name, geometry
     """
-    layers = load_zones(VG1000_DIR, merge=False)
-    if VG_LAYER not in layers:
-        available = ", ".join(sorted(layers.keys()))
-        raise KeyError(f"Layer '{VG_LAYER}' not found. Available: {available}")
+    shapes_dir, vg_layer, zone_id_col, zone_name_col = _country_config(country)
 
-    gdf = layers[VG_LAYER].copy()
+    layers = load_zones(shapes_dir, merge=False)
+    if vg_layer not in layers:
+        available = ", ".join(sorted(layers.keys()))
+        raise KeyError(f"Layer '{vg_layer}' not found. Available: {available}")
+
+    gdf = layers[vg_layer].copy()
 
     # Keep a minimal schema for the UI
-    gdf = gdf[[ZONE_ID_COL, ZONE_NAME_COL, "geometry"]].rename(
-        columns={ZONE_ID_COL: "zone_id", ZONE_NAME_COL: "zone_name"}
+    gdf = gdf[[zone_id_col, zone_name_col, "geometry"]].rename(
+        columns={zone_id_col: "zone_id", zone_name_col: "zone_name"}
     )
     gdf["zone_id"] = gdf["zone_id"].astype(str)
     gdf["zone_name"] = gdf["zone_name"].astype(str)
@@ -58,20 +78,26 @@ def zones_gdf():
     return gdf
 
 
-@lru_cache(maxsize=1)
-def zones_geojson() -> dict[str, Any]:
+@lru_cache(maxsize=2)
+def zones_geojson(country: str = "de") -> dict[str, Any]:
     """
     Return the full zone layer as GeoJSON.
+
+    Args:
+        country: "de" for Germany or "at" for Austria.
     """
-    return zones_gdf().__geo_interface__
+    return zones_gdf(country).__geo_interface__
 
 
-@lru_cache(maxsize=1)
-def zones_index() -> list[dict[str, str]]:
+@lru_cache(maxsize=2)
+def zones_index(country: str = "de") -> list[dict[str, str]]:
     """
     Return a lightweight zone list for the dropdown.
+
+    Args:
+        country: "de" for Germany or "at" for Austria.
     """
-    gdf = zones_gdf()
+    gdf = zones_gdf(country)
     return (
         gdf[["zone_id", "zone_name"]]
         .sort_values(["zone_name", "zone_id"])

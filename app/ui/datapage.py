@@ -176,10 +176,11 @@ DATA_PAGE_HTML = r"""
       <section class="card">
         <h2>Projekt</h2>
         <p>
-        Dieses Projekt analysiert die Erreichbarkeit im deutschen Regional- und Fernverkehr auf Basis öffentlich 
-        verfügbarer Fahrplandaten. Dargestellt werden Reisezeiten, die Anzahl notwendiger Umstiege sowie das Verhältnis 
-        von Reisezeiten im öffentlichen Verkehr zum motorisierten Individualverkehr auf Ebene räumlicher Zonen. Ziel ist 
-        es, Unterschiede in der verkehrlichen Erreichbarkeit regional vergleichbar und interaktiv sichtbar zu machen.
+        Dieses Projekt analysiert die Erreichbarkeit im deutschen Regional- und Fernverkehr sowie im österreichischen 
+        Schienennetz (ÖBB) auf Basis öffentlich verfügbarer Fahrplandaten. Dargestellt werden Reisezeiten, die Anzahl 
+        notwendiger Umstiege sowie das Verhältnis von Reisezeiten im öffentlichen Verkehr zum motorisierten 
+        Individualverkehr auf Ebene räumlicher Zonen. Ziel ist es, Unterschiede in der verkehrlichen Erreichbarkeit 
+        regional vergleichbar und interaktiv sichtbar zu machen.
         </p>
         <p>
         Das Projekt basiert auf einem GTFS-basierten Datenworkflow, der Fahrplandaten verarbeitet und für Routing und 
@@ -187,6 +188,8 @@ DATA_PAGE_HTML = r"""
         Modul berechnet und anschließend auf räumliche Zonen übertragen. Ergänzend werden für dieselben Zonenrelationen 
         auch Pkw-Reisezeiten berechnet. Dadurch wird sichtbar, wo der öffentliche Verkehr besonders leistungsfähig ist, 
         wo viele Umstiege erforderlich sind und wo sich deutliche Unterschiede zur Erreichbarkeit mit dem Auto zeigen.
+        Über den Netz-Umschalter in der Seitenleiste kann zwischen dem deutschen Netz (DB) und dem österreichischen 
+        Netz (ÖBB) gewechselt werden.
         </p>
       </section>
 

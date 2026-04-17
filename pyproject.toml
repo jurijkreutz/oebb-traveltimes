@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "deutsche-bahn-traveltimes"
+name = "oebb-traveltimes"
 version = "0.1.0"
-description = "GTFS-based railway accessibility analysis, RAPTOR routing, OD generation, and FastAPI map UI for Germany."
+description = "GTFS-based railway accessibility analysis, RAPTOR routing, OD generation, and FastAPI map UI for Germany (DB) and Austria (ÖBB)."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

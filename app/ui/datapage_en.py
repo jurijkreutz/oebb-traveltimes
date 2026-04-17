@@ -176,10 +176,11 @@ DATA_PAGE_HTML_EN = r"""
       <section class="card">
         <h2>Project</h2>
         <p>
-        This project analyses accessibility in German regional and long-distance rail transport based on publicly
-        available timetable data. It displays travel times, the number of required transfers, and the ratio of
-        public transport travel times to private motorised transport travel times at the level of spatial zones.
-        The aim is to make regional differences in transport accessibility comparable and interactively visible.
+        This project analyses accessibility in German regional and long-distance rail transport as well as the Austrian
+        rail network (ÖBB) based on publicly available timetable data. It displays travel times, the number of required
+        transfers, and the ratio of public transport travel times to private motorised transport travel times at the
+        level of spatial zones. The aim is to make regional differences in transport accessibility comparable and
+        interactively visible.
         </p>
         <p>
         The project is based on a GTFS-based data workflow that processes timetable data and prepares it for routing
@@ -187,6 +188,7 @@ DATA_PAGE_HTML_EN = r"""
         transferred to spatial zones. In addition, car travel times are also calculated for the same zone relations.
         This makes it visible where public transport performs particularly well, where many transfers are required,
         and where substantial differences compared with car accessibility can be observed.
+        Use the Network switcher in the sidebar to toggle between the German network (DB) and the Austrian network (ÖBB).
         </p>
       </section>
 
